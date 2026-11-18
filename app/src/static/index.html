@@ -32,8 +32,11 @@
     仅接受单层、未加密、无不连续标记的 MPEG-TS 媒体清单，片段地址不复用。
     本机直播源示例：<code>http://livesource:8080/live.m3u8</code>（普通）、
     <code>http://livesource:8080/live.m3u8?delay_ms=1500</code>（慢下载）、
+    <code>http://livesource:8080/live.m3u8?size_mb=32&amp;rate_kbps=2048</code>（长片段/慢速率）、
     <code>http://livesource:8080/live.m3u8?missing=12</code>（缺段）、
     <code>http://livesource:8080/live.m3u8?jump_at=10&amp;jump_by=8</code>（窗口跳号）。
+    片段边下边落盘（内存不随片段大小增长）；传输中断或服务退出后不会把半截
+    文件当成完成段，重启会保留完整段并补收缺失段。
   </p>
 </div>
 

@@ -32,6 +32,11 @@ class StartBody(BaseModel):
     url: str
 
 
+def _zip_available(job: dict) -> bool:
+    return (job["state"] == "done" and bool(job["zip_path"])
+            and os.path.isfile(job["zip_path"]))
+
+
 def job_json(job_id: int) -> dict:
     job = db.get_job(job_id)
     if job is None:
@@ -49,7 +54,8 @@ def job_json(job_id: int) -> dict:
         "saved": counts["done"],
         "missing": db.missing_seqs(job_id),
         "error": job["error"],
-        "download_url": f"/api/jobs/{job_id}/download" if job["state"] == "done" else None,
+        "download_url": (f"/api/jobs/{job_id}/download"
+                         if _zip_available(job) else None),
     }
     return out
 
@@ -89,8 +95,8 @@ async def download(job_id: int):
     job = db.get_job(job_id)
     if job is None:
         raise HTTPException(404, "job not found")
-    if job["state"] != "done" or not job["zip_path"] or not os.path.exists(job["zip_path"]):
-        raise HTTPException(409, "全部应收片段保存后才可下载")
+    if not _zip_available(job):
+        raise HTTPException(409, "停止边界内全部应收片段保存后才可下载")
     return FileResponse(job["zip_path"], media_type="application/zip",
                         filename=f"recording_{job_id}.zip")
 

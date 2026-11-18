@@ -100,12 +100,17 @@ class DB:
             )
             self._touch(job_id)
 
-    def job_done(self, job_id: int, zip_path: str):
+    def job_done(self, job_id: int, zip_path: str) -> bool:
+        """Publish a finished job. Only a finalizing job may become done, so a
+        late success can never overwrite a failure (or vice versa)."""
         with self._lock, self._conn:
-            self._conn.execute(
-                "UPDATE jobs SET state='done', zip_path=? WHERE id=?", (zip_path, job_id)
+            cur = self._conn.execute(
+                "UPDATE jobs SET state='done', error=NULL, zip_path=? "
+                "WHERE id=? AND state='finalizing'",
+                (zip_path, job_id),
             )
             self._touch(job_id)
+            return cur.rowcount > 0
 
     def job_failed(self, job_id: int, error: str):
         with self._lock, self._conn:
