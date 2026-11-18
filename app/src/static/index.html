@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>HLS 直播连续录音采集</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 1100px; color: #222; }
+  h1 { font-size: 1.4rem; }
+  .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem 1.2rem; margin-bottom: 1.2rem; }
+  input[type=text] { width: 70%; padding: .45rem; font-size: .95rem; }
+  button { padding: .45rem 1rem; font-size: .95rem; cursor: pointer; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { border-bottom: 1px solid #eee; padding: .45rem .5rem; text-align: left; vertical-align: top; }
+  .state-recording { color: #1565c0; font-weight: 600; }
+  .state-finalizing { color: #ef6c00; font-weight: 600; }
+  .state-done { color: #2e7d32; font-weight: 600; }
+  .state-failed { color: #c62828; font-weight: 600; }
+  .err { color: #c62828; }
+  .muted { color: #777; font-size: .85rem; }
+  code { background: #f4f4f4; padding: 0 .3rem; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h1>HLS 直播连续录音采集</h1>
+
+<div class="card">
+  <div>
+    <input id="url" type="text" placeholder="http://livesource:8080/live.m3u8">
+    <button onclick="startJob()">开始录制</button>
+  </div>
+  <p class="muted">
+    仅接受单层、未加密、无不连续标记的 MPEG-TS 媒体清单，片段地址不复用。
+    本机直播源示例：<code>http://livesource:8080/live.m3u8</code>（普通）、
+    <code>http://livesource:8080/live.m3u8?delay_ms=1500</code>（慢下载）、
+    <code>http://livesource:8080/live.m3u8?missing=12</code>（缺段）、
+    <code>http://livesource:8080/live.m3u8?jump_at=10&amp;jump_by=8</code>（窗口跳号）。
+  </p>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr><th>ID</th><th>清单地址</th><th>状态</th><th>进度</th><th>窗口</th><th>缺段/错误</th><th>操作</th></tr>
+    </thead>
+    <tbody id="jobs"></tbody>
+  </table>
+</div>
+
+<script>
+async function refresh() {
+  try {
+    const r = await fetch('/api/jobs');
+    const jobs = await r.json();
+    const tbody = document.getElementById('jobs');
+    tbody.innerHTML = '';
+    for (const j of jobs) {
+      const tr = document.createElement('tr');
+      const win = (j.first_seq === null) ? '—'
+        : `${j.first_seq} .. ${j.last_seq}` + (j.stop_seq !== null ? `（止于 ${j.stop_seq}）` : '');
+      const miss = (j.missing && j.missing.length) ? `<span class="err">缺段: ${j.missing.join(', ')}</span><br>` : '';
+      const err = j.error ? `<span class="err">${j.error}</span>` : '';
+      let ops = '';
+      if (j.state === 'recording') ops += `<button onclick="stopJob(${j.id})">停止</button> `;
+      if (j.state === 'done') ops += `<a href="${j.download_url}">下载 ZIP</a>`;
+      tr.innerHTML = `<td>${j.id}</td><td style="word-break:break-all">${j.url}</td>`
+        + `<td class="state-${j.state}">${j.state}</td>`
+        + `<td>${j.saved} / ${j.expected}</td><td>${win}</td>`
+        + `<td>${miss}${err}</td><td>${ops}</td>`;
+      tbody.appendChild(tr);
+    }
+  } catch (e) { console.error(e); }
+}
+async function startJob() {
+  const url = document.getElementById('url').value.trim();
+  if (!url) return;
+  const r = await fetch('/api/jobs', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url})});
+  if (!r.ok) alert('开始失败: ' + (await r.json()).detail);
+  refresh();
+}
+async function stopJob(id) {
+  await fetch(`/api/jobs/${id}/stop`, {method: 'POST'});
+  refresh();
+}
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+services:
+  livesource:
+    build: ./livesource
+    environment:
+      WINDOW_SIZE: "5"
+      SEGMENT_DURATION: "2"
+    ports:
+      - "8080:8080"
+
+  app:
+    build: ./app
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - appdata:/data
+    ports:
+      - "8000:8000"
+    depends_on:
+      - livesource
+
+volumes:
+  appdata:
